@@ -336,5 +336,5 @@ if __name__=="__main__":
     
     # Demonstration code
     #print(f"Total CPU cores available: {os.cpu_count()}")
-    config = Configuration(6, "chordal4cycle.ggb")
+    config = Configuration(6, "Dodecahedron2.ggb")
     config.is_reducible()
