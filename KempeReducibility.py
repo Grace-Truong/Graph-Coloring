@@ -6,6 +6,7 @@ import sage.all
 import geogebra_graph
 import time
 import multiprocessing
+import argparse
 
 class Configuration:
     """
@@ -17,8 +18,7 @@ class Configuration:
     """
     def __init__(self, num_colors, file_name):
         self.num_colors = num_colors
-        self.S = set()
-        self.U = set()
+        self.U = set()                                                                      #Storing only U as it is the smaller compared to S
 
         self.G= geogebra_graph.geogebra_to_graph(file_name)
         
@@ -100,22 +100,10 @@ class Configuration:
             results = pool.map(self.does_extend, all_colorings, chunksize = 100)
         
         for coloring, does_extend in results:
-            if does_extend:
-                self.S.add(coloring)
-            else:
+            if not does_extend:
                 self.U.add(coloring)
             
-        # for frontier_coloring in itertools.product(                     # making all the possible tuple of frozensets
-            # *(
-              # (frozenset(x) for x in itertools.combinations(C,d))
-              # for d in self.degrees
-             # )
-            # ):
-            # if self.does_extend(frontier_coloring):  
-                # self.S.add(frontier_coloring)
-            # else:
-                # self.U.add(frontier_coloring)
-        print(len(self.S), len(self.U))
+        print(len(self.U))
     
     def create_auxiliary(self, frontier_coloring, i, j):
         """
@@ -132,7 +120,6 @@ class Configuration:
         aux_edges = list()
         vertex_index = set()
         couples = set()
-        #frontier_coloring_tuple = tuple(tuple(i) for i in frontier_coloring)
         
         for k, colors_incident_k in enumerate(frontier_coloring):   #creates set of verticies that will be in aux and creates set of couples
             degree = len(colors_incident_k & {i,j})                 #how many times i and j are at vertex k
@@ -140,22 +127,20 @@ class Configuration:
                 vertex_index.add(k)
                 if degree == 2:
                     couples.add(k)
-    
+        singles = vertex_index - couples
+        
         for start, end in itertools.combinations_with_replacement(vertex_index, 2): #making all the Kempe chains and testing if they extend
             test_coloring_new = tuple((colors_incident_k ^ {i,j})
-                if (k == start or k == end) 
+                if ((k == start or k == end) and (k in singles)) 
                 else colors_incident_k
                 for k, colors_incident_k in enumerate(frontier_coloring))
-                
-            
-            if test_coloring_new not in self.S:
+            if test_coloring_new in self.U: #not in S
                 if start != end:  
                     for middle in powerset(couples-{start,end}):
                         kempe = set(middle) | {start,end}
                         aux_edges.append(kempe)
                 else:
                     aux_edges.append({start})
-        #print(f"for colors {i} and {j} the vertices: {vertex_index} and edges: {aux_edges}")
         return vertex_index, aux_edges
         
         
@@ -189,7 +174,6 @@ class Configuration:
                 intersection = test_range & test_edge
                 if intersection == test_edge:
                     is_crossing = False
-        #print(f"{edge1} and {edge2} are crossing: {is_crossing}")
         return is_crossing
         
     def has_NCPM(self, aux_vertices, aux_edges):
@@ -204,7 +188,6 @@ class Configuration:
             True if there is a matching and false if not
         """
         if not aux_vertices:                    #if empty
-            #print(f"For auxiliary a NCPM was found")
             return True
         p = MixedIntegerLinearProgram()
         x= p.new_variable(binary=True)
@@ -223,13 +206,11 @@ class Configuration:
             if adj_edges:           #non-empty
                 p.add_constraint(p.sum(x[j] for j in adj_edges) ==1)
             else:                   #if adj_edges is empty then there is no edges in aux that contain v and so no perfect matching
-                #print(f"For auxiliary a NCPM was NOT found")
                 return False
                 
         p.set_objective(0)
         try:
             p.solve()
-            #print(f"For auxiliary a NCPM was found")
             return True
         except Exception as e:
             if "no feasible" not in str(e).lower():
@@ -265,21 +246,14 @@ class Configuration:
             start = time.perf_counter()
             print(f'Starting while loop, {len(self.U)=}')
             remove_from_U = set()
-            U_list = list(self.U)
-            # len_U = len(U_list)
-            # chunk = max(1, len_U/num_cpu)
             with multiprocessing.Pool() as pool:
-                results = pool.map(self.is_good, U_list, chunksize = 100)
+                results = pool.map(self.is_good, self.U, chunksize = 100) #results is a list
+            results = map(self.is_good, self.U)
             for frontier_coloring, is_good in results:
                 if is_good:
-                    remove_from_U.add(frontier_coloring)                    
-            # for frontier_coloring in self.U:
-                # if self.is_good(frontier_coloring) == False:
-                    # remove_from_U.add(frontier_coloring)
-                    # clean_output = tuple(next(iter(s)) for s in frontier_coloring)
+                    remove_from_U.add(frontier_coloring) 
             if remove_from_U: #non-empty
                 self.U = self.U - remove_from_U
-                self.S = self.S.union(remove_from_U)
                 if not self.U: #U is empty
                     print(f'U is empty, therefore it is reducible. YAY!')
                     end = time.perf_counter()
@@ -321,20 +295,20 @@ class Configuration:
         self.init_colorings()
         end = time.perf_counter()
         print(f"Time taken for init_colorings: {end - start:.6f} seconds")
-        # print("Not Extendable colorings:")
-        # for i in self.U:
-            # clean_output = tuple(next(iter(s)) for s in i)
-            # print(clean_output)
         self.test_reducibility()
         if self.U: #non-empty
-            UL = sorted(list(self.U))
-            #self.find_equiv_classes(UL)
+            print("Not reducible")
         else:
             print("YAY! It's reducible")
 
 if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filename')
+    args = parser.parse_args()
+    config = Configuration(6, args.filename)
+    config.is_reducible()
     
     # Demonstration code
     #print(f"Total CPU cores available: {os.cpu_count()}")
-    config = Configuration(6, "Dodecahedron2.ggb")
-    config.is_reducible()
+    #config = Configuration(6, "4cycle_6666.ggb")
+    #config.is_reducible()
