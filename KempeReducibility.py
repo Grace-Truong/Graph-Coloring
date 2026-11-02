@@ -144,37 +144,27 @@ class Configuration:
         return vertex_index, aux_edges
         
         
-    def are_Crossing(self, edge1, edge2): 
-        """
-        Checks if two edges in the auxiliary are crossing or not
-        
-        Args:
-            edge1: the first hyperedge/Kempe chain
-            edge2: the second hyperedge/Kempe chain
-            
-        Returns:
-            True if the edges are crossing and False if not
-        """
-        is_crossing = True
-        if len(edge1) == 1 or len(edge2)==1:        #trailing off Kempe chains are not crossing
-            is_crossing = False
+    def are_Crossing(self, edge1, edge2):
+        """Check whether two auxiliary hyperedges cross, without copying them."""
+        if len(edge1) == 1 or len(edge2) == 1:
+            return False
+
+        minimum = min(min(edge1), min(edge2))
+        if minimum in edge1:
+            start_edge = edge1
+            test_edge = edge2
         else:
-            minimum = min(min(edge1), min(edge2))   #edges of Kempe are in order so just need to test the 1st values for the min
-            if minimum in edge1:
-                start_edge = copy.deepcopy(edge1)
-                test_edge = copy.deepcopy(edge2)
-            else:
-                start_edge = edge2
-                test_edge = edge1
-            maximum = max(max(test_edge), max(start_edge))
-            start_edge = start_edge|{maximum}
-            start_range = sorted(start_edge)
-            for k in range(len(start_range)-1):
-                test_range = set(range(start_range[k], start_range[k+1]+1))
-                intersection = test_range & test_edge
-                if intersection == test_edge:
-                    is_crossing = False
-        return is_crossing
+            start_edge = edge2
+            test_edge = edge1
+
+        test_min = min(test_edge)
+        test_max = max(test_edge)
+        # The test edge fits in one gap of the start edge exactly when
+        # no start-edge vertex lies strictly between test_edges extreme vertices.
+        for vertex in start_edge:
+            if test_min < vertex < test_max:
+                return True
+        return False
         
     def has_NCPM(self, aux_vertices, aux_edges):
         """
