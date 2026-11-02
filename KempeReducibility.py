@@ -168,7 +168,7 @@ class Configuration:
                 test_edge = edge1
             maximum = max(max(test_edge), max(start_edge))
             start_edge = start_edge|{maximum}
-            start_range = list(start_edge)
+            start_range = sorted(start_edge)
             for k in range(len(start_range)-1):
                 test_range = set(range(start_range[k], start_range[k+1]+1))
                 intersection = test_range & test_edge
